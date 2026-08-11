@@ -1,4 +1,5 @@
 import { PrestasiSiswa } from '../types/prestasi';
+import { getAppsScriptUrl, sendDataToAppsScript } from './appsScript';
 
 const STORAGE_KEY = 'himpres_smada_prestasi_data_v4';
 const NOTIF_STORAGE_KEY = 'himpres_smada_notifications_v2';
@@ -46,6 +47,13 @@ export function addPrestasi(newPrestasi: Omit<PrestasiSiswa, 'id' | 'tanggalSubm
 
   const updated = [record, ...current];
   savePrestasiData(updated);
+
+  // Auto sync to Google Apps Script Web App if URL is configured
+  const scriptUrl = getAppsScriptUrl();
+  if (scriptUrl) {
+    sendDataToAppsScript(scriptUrl, record).catch(err => console.error('Auto sync error:', err));
+  }
+
   return record;
 }
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { PrestasiSiswa, StatusVerifikasi, KategoriPrestasi, JenjangPrestasi, HasilKejuaraan } from '../types/prestasi';
 import { getStoredPrestasi, savePrestasiData, updatePrestasi, deletePrestasi, addNotification, addPrestasi } from '../utils/storage';
 import { exportToExcel } from '../utils/excel';
+import { APPS_SCRIPT_CODE } from '../utils/appsScriptCode';
+import { getAppsScriptUrl, saveAppsScriptUrl, testAppsScriptConnection, sendDataToAppsScript } from '../utils/appsScript';
 import {
   FileSpreadsheet,
   Download,
@@ -18,7 +20,15 @@ import {
   Check,
   X,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  Code,
+  Copy,
+  ExternalLink,
+  Link,
+  Wifi,
+  Send,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -37,10 +47,60 @@ export const AdminDashboard: React.FC = () => {
   const [rejectModalItem, setRejectModalItem] = useState<PrestasiSiswa | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAppsScriptModalOpen, setIsAppsScriptModalOpen] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
 
   // Spreadsheet cell editing state
   const [editingCell, setEditingCell] = useState<{ id: string; field: keyof PrestasiSiswa } | null>(null);
   const [spreadsheetSaveSuccess, setSpreadsheetSaveSuccess] = useState(false);
+
+  // Google Apps Script Web App URL state
+  const [appsScriptUrl, setAppsScriptUrl] = useState('');
+  const [saveUrlSuccessMsg, setSaveUrlSuccessMsg] = useState<string | null>(null);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testConnectionResult, setTestConnectionResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncDataMsg, setSyncDataMsg] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    setAppsScriptUrl(getAppsScriptUrl());
+  }, []);
+
+  const handleSaveAppsScriptUrl = () => {
+    if (!appsScriptUrl.trim()) {
+      setSaveUrlSuccessMsg('Mohon ketik atau tempelkan URL Web App terlebih dahulu.');
+      setTimeout(() => setSaveUrlSuccessMsg(null), 3000);
+      return;
+    }
+    saveAppsScriptUrl(appsScriptUrl);
+    setSaveUrlSuccessMsg('URL Web App Google Apps Script berhasil disimpan!');
+    setTimeout(() => setSaveUrlSuccessMsg(null), 3500);
+  };
+
+  const handleTestConnection = async () => {
+    if (!appsScriptUrl.trim()) {
+      setTestConnectionResult({ success: false, message: 'URL Web App tidak boleh kosong.' });
+      return;
+    }
+    setIsTestingConnection(true);
+    setTestConnectionResult(null);
+    const result = await testAppsScriptConnection(appsScriptUrl);
+    setTestConnectionResult(result);
+    setIsTestingConnection(false);
+  };
+
+  const handleSyncDataToSheets = async () => {
+    if (!appsScriptUrl.trim()) {
+      setSyncDataMsg({ success: false, message: 'Harap simpan URL Web App terlebih dahulu.' });
+      return;
+    }
+    setIsSyncingAll(true);
+    setSyncDataMsg(null);
+    const result = await sendDataToAppsScript(appsScriptUrl, data);
+    setSyncDataMsg(result);
+    setIsSyncingAll(false);
+    setTimeout(() => setSyncDataMsg(null), 5000);
+  };
 
   const loadData = () => {
     setData(getStoredPrestasi());
@@ -197,6 +257,143 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Integrasi Google Apps Script Web App Settings Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold shrink-0">
+              <Link className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                Integrasi Google Apps Script Web App
+              </h3>
+              <p className="text-xs text-slate-500">
+                Simpan URL Web App dari Google Sheets untuk sinkronisasi otomatis data prestasi HIMPRES SMADA.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsAppsScriptModalOpen(true)}
+            className="self-start sm:self-center px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 transition-colors flex items-center gap-1.5 shrink-0"
+          >
+            <Code className="w-3.5 h-3.5" />
+            <span>Lihat Kode Code.gs</span>
+          </button>
+        </div>
+
+        {/* Input & Action Buttons Row */}
+        <div className="space-y-3">
+          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+            <span>URL Web App Google Apps Script</span>
+            {appsScriptUrl ? (
+              <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Terkonfigurasi
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-600 font-semibold">Belum diatur</span>
+            )}
+          </label>
+
+          <div className="flex flex-col lg:flex-row items-stretch gap-2.5">
+            <div className="relative flex-1">
+              <Link className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <input
+                type="url"
+                value={appsScriptUrl}
+                onChange={(e) => setAppsScriptUrl(e.target.value)}
+                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm font-mono text-slate-800 bg-slate-50/50"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Tombol Simpan URL */}
+              <button
+                onClick={handleSaveAppsScriptUrl}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan URL</span>
+              </button>
+
+              {/* Tombol Uji Koneksi */}
+              <button
+                onClick={handleTestConnection}
+                disabled={isTestingConnection}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white disabled:bg-slate-400 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              >
+                {isTestingConnection ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+                <span>{isTestingConnection ? 'Menguji...' : 'Uji Koneksi'}</span>
+              </button>
+
+              {/* Tombol Sinkronkan Data */}
+              <button
+                onClick={handleSyncDataToSheets}
+                disabled={isSyncingAll}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-emerald-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                title="Kirim ulang data lokal ke Google Sheets"
+              >
+                {isSyncingAll ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                <span>{isSyncingAll ? 'Mengirim...' : 'Kirim Data ke Sheet'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback Badges */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            {saveUrlSuccessMsg && (
+              <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-medium flex items-center gap-1.5 animate-fade-in">
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{saveUrlSuccessMsg}</span>
+              </div>
+            )}
+
+            {testConnectionResult && (
+              <div
+                className={`px-3 py-1.5 border text-xs rounded-xl font-medium flex items-center gap-1.5 animate-fade-in ${
+                  testConnectionResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {testConnectionResult.success ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                )}
+                <span>{testConnectionResult.message}</span>
+              </div>
+            )}
+
+            {syncDataMsg && (
+              <div
+                className={`px-3 py-1.5 border text-xs rounded-xl font-medium flex items-center gap-1.5 animate-fade-in ${
+                  syncDataMsg.success
+                    ? 'bg-sky-50 border-sky-200 text-sky-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {syncDataMsg.success ? (
+                  <Send className="w-3.5 h-3.5 text-sky-600" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                )}
+                <span>{syncDataMsg.message}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Main Container Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
         {/* Header Controls Bar */}
@@ -238,7 +435,17 @@ export const AdminDashboard: React.FC = () => {
               className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-colors shadow-2xs"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Unduh Format Excel (.xlsx)</span>
+              <span>Unduh Excel (.xlsx)</span>
+            </button>
+
+            {/* Google Apps Script Button */}
+            <button
+              onClick={() => setIsAppsScriptModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 rounded-xl text-xs font-bold transition-colors shadow-2xs"
+              title="Lihat & Salin Kode Apps Script (Code.gs)"
+            >
+              <Code className="w-3.5 h-3.5 text-amber-700" />
+              <span>Kode Code.gs</span>
             </button>
 
             {/* Add Manual Record */}
@@ -855,6 +1062,147 @@ export const AdminDashboard: React.FC = () => {
                 <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">Simpan</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Code Google Apps Script (Code.gs) */}
+      {isAppsScriptModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                  <Code className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Script Google Apps Script (Code.gs)</h3>
+                  <p className="text-xs text-slate-500">Integrasi Google Sheets untuk HIMPRES SMADA SMAN 2 Kota Pasuruan</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAppsScriptModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto my-4 space-y-4 pr-1 text-xs text-slate-700 custom-scrollbar">
+              {/* Petunjuk Penggunaan */}
+              <div className="p-4 bg-indigo-50/70 border border-indigo-200/80 rounded-xl space-y-2">
+                <div className="font-extrabold text-indigo-950 flex items-center gap-1.5 text-sm">
+                  <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+                  <span>Petunjuk Pemasangan di Google Sheets:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-indigo-900 text-[11px] leading-relaxed">
+                  <li>Buka <strong>Google Sheets</strong> di Google Drive Anda (misal beri judul: <code>Database HIMPRES SMADA</code>).</li>
+                  <li>Klik menu <strong>Ekstensi (Extensions)</strong> &gt; <strong>Apps Script</strong>.</li>
+                  <li>Hapus semua kode bawaan, lalu tempelkan (paste) kode di bawah ini.</li>
+                  <li>Jalankan fungsi <code>setupSheetHeader</code> sekali untuk membuat header kolom otomatis.</li>
+                  <li>Klik <strong>Terapkan (Deploy)</strong> &gt; <strong>Aplikasi Web Baru (New Deployment)</strong>.</li>
+                  <li>Set opsi "Akses" (Who has access) ke <strong>"Siapa saja" (Anyone)</strong>.</li>
+                  <li>Salin URL Web App yang dihasilkan lalu tempelkan pada kolom di bawah ini.</li>
+                </ol>
+              </div>
+
+              {/* URL Input Box inside Modal */}
+              <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-3">
+                <label className="text-xs font-extrabold text-amber-950 flex items-center justify-between">
+                  <span>URL Web App Google Apps Script</span>
+                  {appsScriptUrl ? (
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-md">Tersimpan</span>
+                  ) : (
+                    <span className="text-[10px] text-amber-800 font-medium">Belum diisi</span>
+                  )}
+                </label>
+                <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                  <div className="relative flex-1">
+                    <Link className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="url"
+                      value={appsScriptUrl}
+                      onChange={(e) => setAppsScriptUrl(e.target.value)}
+                      placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveAppsScriptUrl}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 shrink-0"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Simpan URL</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={isTestingConnection}
+                      className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white disabled:bg-slate-400 rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 shrink-0"
+                    >
+                      {isTestingConnection ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                      )}
+                      <span>{isTestingConnection ? 'Menguji...' : 'Uji Koneksi'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {saveUrlSuccessMsg && (
+                  <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> {saveUrlSuccessMsg}
+                  </p>
+                )}
+
+                {testConnectionResult && (
+                  <p className={`text-[11px] font-semibold flex items-center gap-1 ${
+                    testConnectionResult.success ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    {testConnectionResult.success ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                    {testConnectionResult.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Code display box */}
+              <div className="relative rounded-xl bg-slate-950 text-slate-100 p-4 font-mono text-[11px] overflow-x-auto shadow-inner border border-slate-800 leading-relaxed">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(APPS_SCRIPT_CODE);
+                    setCopiedScript(true);
+                    setTimeout(() => setCopiedScript(false), 2000);
+                  }}
+                  className="absolute top-3 right-3 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-sans text-xs font-bold rounded-lg flex items-center gap-1.5 shadow transition-all z-10"
+                >
+                  {copiedScript ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Berhasil Disalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Salin Kode Code.gs</span>
+                    </>
+                  )}
+                </button>
+                <pre className="pr-24">{APPS_SCRIPT_CODE}</pre>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 flex justify-between items-center shrink-0">
+              <span className="text-[11px] text-slate-500 font-medium">File <code>Code.gs</code> juga dapat ditemukan di direktori utama proyek.</span>
+              <button
+                onClick={() => setIsAppsScriptModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-700 transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
