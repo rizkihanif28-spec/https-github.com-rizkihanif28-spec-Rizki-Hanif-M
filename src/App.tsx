@@ -17,6 +17,10 @@ export default function App() {
   const [statusSearchEmail, setStatusSearchEmail] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
 
+  // Responsive Sidebar States
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   // Calculate pending verification count for badge
   useEffect(() => {
     const updateCount = () => {
@@ -64,20 +68,27 @@ export default function App() {
         pendingCount={pendingCount}
         initialKategori={initialKategori}
         setInitialKategori={setInitialKategori}
+        isSidebarCollapsed={isSidebarCollapsed}
+        setIsSidebarCollapsed={setIsSidebarCollapsed}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        setIsMobileSidebarOpen={setIsMobileSidebarOpen}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
+      <main className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden min-w-0">
         {/* Top Header */}
         <Header
           activeTab={activeTab}
           isAdminLoggedIn={isAdminLoggedIn}
           onOpenAdminPin={handleOpenAdminPin}
           onLogoutAdmin={handleLogoutAdmin}
+          isSidebarCollapsed={isSidebarCollapsed}
+          setIsSidebarCollapsed={setIsSidebarCollapsed}
+          setIsMobileSidebarOpen={setIsMobileSidebarOpen}
         />
 
         {/* Dynamic View Sections */}
-        <section className="p-6 sm:p-8 flex-1 overflow-y-auto custom-scrollbar">
+        <section className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'input' && (
             <FormInputSiswa
               initialKategori={initialKategori}
