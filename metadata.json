@@ -1,0 +1,6 @@
+{
+  "name": "HIMPRES SMADA by bidang kesiswaan",
+  "description": "Sistem Informasi Pendataan Prestasi (HIMPRES SMADA by bidang kesiswaan) SMAN 2 Kota Pasuruan untuk pencatatan prestasi akademik dan non-akademik, status verifikasi real-time, spreadsheet editor, serta rekapitulasi data Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
