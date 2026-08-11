@@ -1,12 +1,14 @@
 import { PrestasiSiswa } from '../types/prestasi';
-import { getAppsScriptUrl, sendDataToAppsScript } from './appsScript';
+import { getAppsScriptUrl, sendDataToAppsScript, fetchServerConfig } from './appsScript';
 
 const STORAGE_KEY = 'himpres_smada_prestasi_data_v4';
 const NOTIF_STORAGE_KEY = 'himpres_smada_notifications_v2';
 
-// Seed sample data is empty as requested
 const SEED_DATA: PrestasiSiswa[] = [];
 
+/**
+ * Reads local cached data synchronously for instant component rendering
+ */
 export function getStoredPrestasi(): PrestasiSiswa[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -21,16 +23,59 @@ export function getStoredPrestasi(): PrestasiSiswa[] {
   }
 }
 
-export function savePrestasiData(data: PrestasiSiswa[]): void {
+/**
+ * Saves local cache and triggers real-time UI event
+ */
+export function savePrestasiData(data: PrestasiSiswa[], syncWithServer = true): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    // Broadcast storage event for real-time updates across tabs/components
     window.dispatchEvent(new Event('sipp_smada_data_updated'));
+
+    if (syncWithServer) {
+      fetch('/api/prestasi/bulk', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(err => console.warn('Server sync error:', err));
+    }
   } catch (err) {
     console.error('Error saving data to localStorage', err);
   }
 }
 
+/**
+ * Fetches latest records from the central server backend (shared across all HP, laptops, PCs)
+ */
+export async function fetchPrestasiFromServer(): Promise<PrestasiSiswa[]> {
+  try {
+    // Also fetch server config in background
+    fetchServerConfig().catch(() => {});
+
+    const res = await fetch('/api/prestasi');
+    if (res.ok) {
+      const serverData: PrestasiSiswa[] = await res.json();
+      if (Array.isArray(serverData)) {
+        // Compare with local data: merge or update if different
+        const localRaw = localStorage.getItem(STORAGE_KEY);
+        const localData = localRaw ? JSON.parse(localRaw) : [];
+
+        // If server data exists, update local cache and trigger UI update
+        if (JSON.stringify(serverData) !== JSON.stringify(localData)) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+          window.dispatchEvent(new Event('sipp_smada_data_updated'));
+        }
+        return serverData;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend server fetch failed, using local storage cache:', err);
+  }
+  return getStoredPrestasi();
+}
+
+/**
+ * Adds new record locally and posts to central server backend
+ */
 export function addPrestasi(newPrestasi: Omit<PrestasiSiswa, 'id' | 'tanggalSubmit' | 'diupdatePada' | 'status'>): PrestasiSiswa {
   const current = getStoredPrestasi();
   const nextNum = current.length + 1;
@@ -46,7 +91,14 @@ export function addPrestasi(newPrestasi: Omit<PrestasiSiswa, 'id' | 'tanggalSubm
   };
 
   const updated = [record, ...current];
-  savePrestasiData(updated);
+  savePrestasiData(updated, false);
+
+  // Send to Central Server Backend
+  fetch('/api/prestasi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record),
+  }).catch(err => console.error('Failed to post to central server:', err));
 
   // Auto sync to Google Apps Script Web App if URL is configured
   const scriptUrl = getAppsScriptUrl();
@@ -57,6 +109,9 @@ export function addPrestasi(newPrestasi: Omit<PrestasiSiswa, 'id' | 'tanggalSubm
   return record;
 }
 
+/**
+ * Updates a record locally and sends update to central server backend
+ */
 export function updatePrestasi(id: string, updates: Partial<PrestasiSiswa>): PrestasiSiswa | null {
   const current = getStoredPrestasi();
   let updatedRecord: PrestasiSiswa | null = null;
@@ -73,14 +128,31 @@ export function updatePrestasi(id: string, updates: Partial<PrestasiSiswa>): Pre
     return item;
   });
 
-  savePrestasiData(next);
+  savePrestasiData(next, false);
+
+  // Send update to Central Server Backend
+  if (updatedRecord) {
+    fetch(`/api/prestasi/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }).catch(err => console.error('Failed to update central server:', err));
+  }
+
   return updatedRecord;
 }
 
+/**
+ * Deletes a record locally and on central server backend
+ */
 export function deletePrestasi(id: string): void {
   const current = getStoredPrestasi();
   const next = current.filter(item => item.id !== id);
-  savePrestasiData(next);
+  savePrestasiData(next, false);
+
+  fetch(`/api/prestasi/${id}`, {
+    method: 'DELETE',
+  }).catch(err => console.error('Failed to delete on central server:', err));
 }
 
 // System notifications log

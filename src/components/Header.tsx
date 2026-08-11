@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActiveTab } from '../types/prestasi';
-import { Sparkles, CheckCircle2, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Sparkles, CheckCircle2, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw } from 'lucide-react';
+import { fetchPrestasiFromServer } from '../utils/storage';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -21,6 +22,14 @@ export const Header: React.FC<HeaderProps> = ({
   setIsSidebarCollapsed,
   setIsMobileSidebarOpen,
 }) => {
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await fetchPrestasiFromServer();
+    setTimeout(() => setIsSyncing(false), 600);
+  };
+
   const getBreadcrumbTitle = () => {
     switch (activeTab) {
       case 'input':
@@ -75,11 +84,20 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Real-time status indicator */}
-        <div className="hidden xl:flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-200 text-xs text-slate-600">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-          <span className="font-medium text-slate-700">Real-Time Sync Active</span>
-        </div>
+        {/* Real-time status indicator & manual sync */}
+        <button
+          onClick={handleManualSync}
+          disabled={isSyncing}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200 text-xs text-slate-700 transition-all cursor-pointer font-medium"
+          title="Klik untuk sinkronkan data antar perangkat (HP & Laptop)"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="hidden sm:inline">Sync Antar Perangkat</span>
+          <RefreshCw className={`w-3 h-3 text-slate-500 ml-0.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+        </button>
 
         {isAdminLoggedIn ? (
           <div className="flex items-center gap-2">

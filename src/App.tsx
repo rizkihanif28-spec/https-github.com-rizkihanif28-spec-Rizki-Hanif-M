@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ActiveTab, KategoriPrestasi } from './types/prestasi';
-import { getStoredPrestasi } from './utils/storage';
+import { getStoredPrestasi, fetchPrestasiFromServer } from './utils/storage';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { FormInputSiswa } from './components/FormInputSiswa';
@@ -20,6 +20,31 @@ export default function App() {
   // Responsive Sidebar States
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Real-time server fetch across devices
+  useEffect(() => {
+    // Initial fetch from central server
+    fetchPrestasiFromServer();
+
+    // Periodic polling every 5 seconds for real-time synchronization between HP & Laptop
+    const interval = setInterval(() => {
+      fetchPrestasiFromServer();
+    }, 5000);
+
+    // Fetch when tab/window comes back into focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPrestasiFromServer();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Calculate pending verification count for badge
   useEffect(() => {

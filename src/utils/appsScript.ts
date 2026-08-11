@@ -9,12 +9,37 @@ export function getAppsScriptUrl(): string {
 }
 
 export function saveAppsScriptUrl(url: string): void {
+  const cleanUrl = url.trim();
   try {
-    localStorage.setItem(URL_STORAGE_KEY, url.trim());
+    localStorage.setItem(URL_STORAGE_KEY, cleanUrl);
     window.dispatchEvent(new Event('himpres_smada_script_url_updated'));
+
+    // Sync config to server backend
+    fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appsScriptUrl: cleanUrl }),
+    }).catch(err => console.error('Failed to sync config to server:', err));
   } catch (err) {
     console.error('Error saving Apps Script URL:', err);
   }
+}
+
+export async function fetchServerConfig(): Promise<string> {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.appsScriptUrl) {
+        localStorage.setItem(URL_STORAGE_KEY, data.appsScriptUrl);
+        window.dispatchEvent(new Event('himpres_smada_script_url_updated'));
+        return data.appsScriptUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('Unable to fetch config from server, using local fallback:', err);
+  }
+  return getAppsScriptUrl();
 }
 
 export async function testAppsScriptConnection(url: string): Promise<{ success: boolean; message: string }> {
